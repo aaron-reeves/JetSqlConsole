@@ -1,0 +1,6 @@
+[submodule "ar_general_purpose"]
+	path = ar_general_purpose
+	url = https://github.com/aaron-reeves/ar_general_purpose.git
+[submodule "cadosql"]
+	path = cadosql
+	url = https://github.com/aaron-reeves/cadosql.git
