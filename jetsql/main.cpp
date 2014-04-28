@@ -27,9 +27,10 @@ Public License as published by the Free Software Foundation; either version 2 of
 #include <ar_general_purpose/csql.h>
 #include <ar_general_purpose/cqstringlist.h>
 #include <ar_general_purpose/ccmdline.h>
+#include <ar_general_purpose/help.h>
 #include <ar_general_purpose/qcout.h>
 
-#define VERSION_NUMBER "1.2.0"
+#define VERSION_NUMBER "1.3.0"
 
 #define NUM_INSERT_QUERIES 199
 
@@ -47,9 +48,11 @@ struct SSqlCommand {
   int formatType;
 };
 
-// Forward declarations...
-void showVersion( void );
-void showHelp( void );
+// Forward declarations, used for displaying help messages.
+void showVersion();
+void showHelp();
+CHelpItemList interactiveModesCommandList();
+void showInteractiveModeCommands();
 
 QString getDbPath( const bool isDbf ) {
   if( isDbf )
@@ -88,6 +91,33 @@ SSqlCommand getSqlCmd( void ) {
     sqlCmd.append( strRead );
     sqlCmd = sqlCmd.trimmed();
 
+    // Handle psql-style commands first...
+    //------------------------------------
+    QStringList parts;
+
+    if( 0  == sqlCmd.compare( "\\q" ) )
+      sqlCmd = "quit;";
+    else if( 0 == sqlCmd.compare( "\\?") )
+      sqlCmd = "help;";
+    else if( 0 == sqlCmd.compare( "\\dt") )
+      sqlCmd = "show tables;";
+    else if( "\\d" == sqlCmd.left(2) ) {
+      parts = sqlCmd.simplified().split( ' ' );
+      if( 2 == parts.count() )
+        sqlCmd = QString( "describe %1;" ).arg( parts.at(1) );
+      else
+        sqlCmd = "invalid command;";
+    }
+    else if( "\\i" == sqlCmd.left(2) ) {
+      parts = sqlCmd.simplified().split( ' ' );
+      if( 2 == parts.count() )
+        sqlCmd = QString( "\\. %1" ).arg( parts.at(1) );
+      else
+        sqlCmd = "invalid command;";
+    }
+
+    // ...then carry on with mysql-style commands.
+    //--------------------------------------------
     if( isSqlComment( sqlCmd ) ) {
       break;
     }
@@ -104,10 +134,13 @@ SSqlCommand getSqlCmd( void ) {
       sqlCmdStructure.formatType = FmtList;
       break;
     }
+    else if( "help" == sqlCmd.toLower().left(4) ) {
+      sqlCmd = "help";
+      break;
+    }
     else if(
       ( "quit" == sqlCmd.toLower().left( 4 ) )
       || ( "exit" == sqlCmd.toLower().left( 4 ) )
-      || ( "\\q" == sqlCmd.toLower().left( 2 ) )
     ) {
       sqlCmd = "exit";
       break;
@@ -981,7 +1014,7 @@ bool dumpSql( CSqlDatabase* db, QTextStream* stream, const int dbFormat, const b
 
 
 
-bool describeTable( QString tableName, CSqlDatabase* db, const bool isSystemTable, QTextStream* stream ) {
+bool describeTable( QString tableName, CSqlDatabase* db, const bool isSystemTable, QTextStream* stream, const bool& useWikiFormat ) {
   CSqlFieldInfo* fi;
   TIntArray* sizeArray;
   CFieldInfoList* fieldInfoList;
@@ -1035,17 +1068,28 @@ bool describeTable( QString tableName, CSqlDatabase* db, const bool isSystemTabl
 
     //if( 0 < tableComment.length() ) cout << tableComment << endl << flush;
 
-    *stream << header( sizeArray )  << endl;
-    *stream << "|" << column( "Field", maxNameLength ) << "|" << column( "Type", maxFieldLength ) << "|" << column( "Description", maxDescrLength ) << "|" << endl;
-    *stream << header( sizeArray )  << endl;
+    if( !useWikiFormat ) {
+      *stream << header( sizeArray )  << endl;
+      *stream << "|" << column( "Field", maxNameLength ) << "|" << column( "Type", maxFieldLength ) << "|" << column( "Description", maxDescrLength ) << "|" << endl;
+      *stream << header( sizeArray )  << endl;
+    }
+    else {
+      *stream << "^ Field ^ Type ^ Description ^" << endl;
+    }
 
     for( i = 0; i < fieldInfoList->count(); ++i ) {
       fi = fieldInfoList->at(i);
-      *stream << "|" << column( fi->fieldName(), maxNameLength ) << "|" << column( fi->fieldTypeDescr(), maxFieldLength ) << "|"  << column( fi->fieldDescr(), maxDescrLength ) << "|" << endl;
+      if( !useWikiFormat )
+        *stream << "|" << column( fi->fieldName(), maxNameLength ) << "|" << column( fi->fieldTypeDescr(), maxFieldLength ) << "|"  << column( fi->fieldDescr(), maxDescrLength ) << "|" << endl;
+      else
+        *stream << "| " <<fi->fieldName() << " | " << fi->fieldTypeDescr() << " | " << fi->fieldDescr() << " |" << endl;
     }
 
-    *stream << header( sizeArray )  << endl;
-    *stream << fieldInfoList->count() << " rows in set" << endl;
+    if( !useWikiFormat ) {
+      *stream << header( sizeArray )  << endl;
+      *stream << fieldInfoList->count() << " rows in set" << endl;
+    }
+
     *stream << endl;
 
     delete sizeArray;
@@ -1061,7 +1105,7 @@ bool describeTable( QString tableName, CSqlDatabase* db, const bool isSystemTabl
 
 
 
-bool describeAllTables( CSqlDatabase* db, QTextStream* stream ) {
+bool describeAllTables( CSqlDatabase* db, QTextStream* stream, const bool& useWikiFormat ) {
   QString str;
   bool result = true;
   int i;
@@ -1076,7 +1120,8 @@ bool describeAllTables( CSqlDatabase* db, QTextStream* stream ) {
   for( i = 0; i < tableList->count(); ++i ) {
     str = tableList->at(i);
     *stream << "jetsql> describe " << str << ";" << endl;
-    if( !( describeTable( QString( str ), db, false, stream ) ) ) result = false;
+    if( !( describeTable( QString( str ), db, false, stream, useWikiFormat ) ) )
+      result = false;
   }
 
   delete tableList;
@@ -1342,6 +1387,9 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
     // is part of a query.
     adminCmd = sqlCmd.simplified();
     
+
+    // Handle sqldump
+    //---------------
     if( "sqldump" == adminCmd.left(7).toLower() ) {
       adminCmdParts = adminCmd.split( QRegExp( "\\s+" ) );  
       
@@ -1353,7 +1401,7 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
         // If it is, there is a problem.
         if( adminCmdParts.count() - 1 == tmp ) {
           if( !silent )
-            *stream << "Bad SQLDUMP command: table name missing." << endl << flush;
+            *stream << "Bad SQLDUMP command: table name is missing." << endl << flush;
           return false;  
         }
         else {
@@ -1421,6 +1469,32 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
       }
        
     }
+
+    // Handle wikidump commands
+    //-------------------------
+    else if( "wikidump" == adminCmd.left(8).toLower() ) {
+      adminCmdParts = adminCmd.split( QRegExp( "\\s+" ) );
+
+      // If only one part of the command, describe all tables.
+      // Otherwise, see if the second part is a valid table name, and if so, describe it.
+      if( 1 == adminCmdParts.count() ) {
+        if( !silent )
+          result = describeAllTables( db, stream, true );
+      }
+      else if( 2 == adminCmdParts.count() ) {
+        if( !silent )
+          result = describeTable( extractTableName( adminCmd ), db, false, stream, true );
+      }
+      else {
+        if( !silent )
+          *stream << "Bad WIKIDUMP command." << endl << flush;
+        return false;
+      }
+    }
+
+
+    // Handle simpler admin commands
+    //------------------------------
     else if( "primary keys" == adminCmd.left(12).toLower() ) {
       if( !silent ) 
         result = showKeys( db, stream, cmd.formatType, CSqlDatabase::DBKeyTypePrimary );
@@ -1435,7 +1509,7 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
     }
     else if ( "describe tables" == adminCmd.left( 15 ).toLower() ) {
       if( !silent ) 
-        result = describeAllTables( db, stream );
+        result = describeAllTables( db, stream, false );
     }
     else if( "show tables" == adminCmd.left( 11 ).toLower() ) {
       if( !silent ) 
@@ -1447,11 +1521,11 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
     }
     else if( "sysdescribe" == adminCmd.left( 11 ).toLower() ) {
       if( !silent ) 
-        result = describeTable( extractTableName( adminCmd ), db, true, stream );
+        result = describeTable( extractTableName( adminCmd ), db, true, stream, false );
     }
     else if( "describe" == adminCmd.left( 8 ).toLower() ) {
       if( !silent ) 
-        result = describeTable( extractTableName( adminCmd ), db, false, stream );
+        result = describeTable( extractTableName( adminCmd ), db, false, stream, false );
     }
     else if( "csvdump table" == adminCmd.left( 13 ).toLower() ) {
       if( !silent ) 
@@ -1650,79 +1724,68 @@ void showVersion( void ) {
 }
 
 
+CHelpItemList interactiveModesCommandList() {
+  CHelpItemList list;
+
+  list.append( "", "Interactive mode commands:" );
+  list.append( "  ", "Note: except for \\ commands, all interactive mode commands must end with a semicolon (;)." );
+  list.append( "", "" );
+  list.append( "  show tables, \\dt:", "Displays a list of tables in the database, excluding Microsoft Access system tables." );
+  list.append( "  show system tables:", "Displays a list of  Microsoft Access system tables in the database." );
+  list.append( "  describe <tablename>, \\d <tablename>:", "Displays a description of the indicated table. Excludes system tables." );
+  list.append( "  describe tables:", "Describes all tables, excluding system tables." );
+  list.append( "  sysdescribe <tablename>", "Displays a description of the indicated system table." );
+  list.append( "  keys:", "Displays a list of all keys/constraints in the database." );
+  list.append( "  help, \\?:", "Displays a list of interactive mode commands." );
+  list.append( "  quit, exit, \\q:", "Close the database and exit the application." );
+
+  list.append( "", "" );
+  list.append( "  open outfile <filename>:", "Open a file and direct output (e.g., results of queries) to it." );
+  list.append( "  close outfile:", "Stop directing output to a previously opened file and close it." );
+  list.append( "  sqldump [nodata] [mysql|postgres] [tablename]:", "Generates a complete set of DDL instructions to regenerate and (optionally) populate the database. If the option 'nodata' is provided, the generated script will only reproduce the structure of the database.  Options 'mysql' or 'postgres' produce DDL/SQL statements compatible with MySQL or PostgreSQL, respectively. Otherwise, the generated script is suitable for use with Microsoft Access. If option 'tablename' is provided, DDL/SQL for only the indicated table is generated." );
+  list.append( "  csvdump table <tablename>:", "Writes the contents of the indicated table in comma-separated format." );
+  list.append( "  wikidump [tablename]:", "Generates a description of the specified table suitable for pasting into a wiki page.  If the option 'tablename' is not provided, descriptions for all tables are generated." );
+
+  return list;
+}
+
+
+void showInteractiveModeCommands() {
+  CHelpItemList list;
+  list = interactiveModesCommandList();
+  printHelpList( list );
+}
+
+
 void showHelp( void ) {
+  CHelpItemList list, imcList;
+
+  list.append( "", "Command line arguments:" );
+  list.append( "  --help, -h, -?:", "Display this help message." );
+  list.append( "  --version, -v:", "Display version information." );
+  list.append( "  --database <filename>, -d <filename>:", "If --database is the only switch provided, the specified database will be opened for interactive use.  If --database and --file are both present, SQL commands from the file will be run without further user interaction." );
+  list.append( "  --file <filename>, -f <filename>:", "Specifies the name of a plain-text file containing SQL commands to be executed against a database. Used in combination with --database." );
+  list.append( "  --dbf, -dbf", "Open a DBase file, instead of a Microsoft Access file." );
+  list.append( "  --output <filename>, -o <filename>:", "Specifies the name of a plain-text file to write with results from SQL commands executed against a database.  If --database and --file are not given, this switch is ignored." );
+  list.append( "  --continue, -c:", "If preseent, execution of SQL commands in the file will continue even if an error occurs.  Otherwise, execution will stop on an error." );
+  list.append( "  --silent, -s:", "Run without writing any output to the console. If --database, --file, and --silent are all given, output will not be written to the console. Otherwise, this switch is ignored." );
+
+  list.append( "", "" );
+  imcList = interactiveModesCommandList();
+  list.append( imcList );
+
+  list.append( "", "" );
+  list.append( "", "Exit codes:" );
+  list.append( "  0:", "Operation was successful." );
+  list.append( "  1:", "Database file not specified." );
+  list.append( "  2:", "Database file does not exist or could not be opened." );
+  list.append( "  3:", "SQL command file not specified." );
+  list.append( "  4:", "SQL command file does not exist or could not be opened." );
+  list.append( "  5:", "SQL commands resulted in an error." );
+  list.append( "  6:", "Output file could not be created or written." );
+
   showVersion();
-  cout << "Command line arguments:" << endl;
-  cout << "  --help, -h, -?:   Display this help message." << endl;
-  cout << "  --version, -v:    Display version information." << endl;
-  cout << "  --database <filename>, -d <filename>:" << endl;
-  cout << "                    If --database is the only switch provided, the" << endl;
-  cout << "                    specified database will be opened for interactive" << endl;
-  cout << "                    use.  If --database and --file are both present," << endl;
-  cout << "                    SQL commands from the file will be run without" << endl;
-  cout << "                    further user interaction." << endl;
-  cout << "  --file <filename>, -f <filename>:" << endl;
-  cout << "                    Specifies the name of a plain-text file containing" << endl;
-  cout << "                    SQL commands to be executed against a database." << endl;
-  cout << "                    Used in combination with --database." << endl;
-  cout << "  --dbf, -dbf       Open a DBase file, instead of a Microsoft Access file." << endl;
-  cout << "  --output <filename>, -o <filename>:" << endl;
-  cout << "                    Specifies the name of a plain-text file to write" << endl;
-  cout << "                    with results from SQL commands executed against a" << endl;
-  cout << "                    database.  If --database and --file are not given," << endl;
-  cout << "                    this switch is ignored." << endl;
-  cout << "  --continue, -c:   If preseent, execution of SQL commands " << endl;
-  cout << "                    in the file will continue even if an" << endl;
-  cout << "                    error occurs.  Otherwise, execution will stop on" << endl;
-  cout << "                    an error." << endl;
-  cout << "  --silent, -s:     Run without writing any output to the console." << endl;
-  cout << "                    If --database, --file, and --silent are all given," << endl;
-  cout << "                    output will not be written to the console." << endl;
-  cout << "                    Otherwise, this switch is ignored." << endl;
-  cout << endl;
-  cout << "Interactive mode commands:" << endl;
-  cout << "  show tables:      Displays a list of tables in the database, excluding" << endl;
-  cout << "                    Microsoft Access system tables." << endl;
-  cout << "  show system tables:" << endl;
-  cout << "                    Displays a list of  Microsoft Access system tables" << endl;
-  cout << "                    in the database." << endl;
-  cout << "  describe <tablename>:" << endl;
-  cout << "                    Displays a description of the indicated table." << endl;
-  cout << "                    Excludes system tables." << endl;
-  cout << "  describe tables:  Describes all tables, excluding system tables." << endl;
-  cout << "  sysdescribe <tablename>:" << endl;
-  cout << "                    Displays a description of the indicated system table." << endl;
-  cout << "  keys:             Displays a list of all keys/constraints in the database." << endl;
-  cout << endl;
-  cout << "  open outfile <filename>:" << endl;
-  cout << "                    Open a file and direct output (e.g., results of queries)" << endl;
-  cout << "                    to it." << endl;
-  cout << "  close outfile:    Stop directing output to a previously opened file and" << endl;
-  cout << "                    close it." << endl;
-  cout << "  sqldump [nodata] [mysql|postgres] [tablename]:" << endl;
-  cout << "                    Generates a complete set of DDL instructions to" << endl;
-  cout << "                    regenerate and (optionally) populate the database." << endl;
-  cout << "                    If the option 'nodata' is provided, the generated" << endl;
-  cout << "                    script will only reproduce the structure of the" << endl;
-  cout << "                    database.  Options 'mysql' or 'postgres' produce" << endl;
-  cout << "                    DDL/SQL statements compatible with MySQL or PostgreSQL," << endl;
-  cout << "                    respectively. Otherwise, the generated script is" << endl;
-  cout << "                    suitable for use with Microsoft Access." << endl;
-  cout << "                    If option 'tablename' is provided, DDL/SQL for only the" << endl;
-  cout << "                    indicated table is generated." << endl;
-  cout << "  csvdump table <tablename>:" << endl;
-  cout << "                    Writes the contents of the indicated table in comma-" << endl;
-  cout << "                    separated format." << endl;
-  cout << endl;
-  cout << "Exit codes:" << endl;
-  cout << "  0: Operation was successful." << endl;
-  cout << "  1: Database file not specified." << endl;
-  cout << "  2: Database file does not exist or could not be opened." << endl;
-  cout << "  3: SQL command file not specified." << endl;
-  cout << "  4: SQL command file does not exist or could not be opened." << endl;
-  cout << "  5: SQL commands resulted in an error." << endl;
-  cout << "  6: Output file could not be created or written." << endl;
-  cout << endl << flush;
+  printHelpList( list );
 }
 
 
@@ -2049,7 +2112,7 @@ int main( int argc, char **argv ) {
         showVersion();
       }
       else if( "help" == sqlCmd.cmdText.toLower().left( 4 ) ) {
-        showHelp();
+        showInteractiveModeCommands();
       }
       else if( "open outfile" == sqlCmd.cmdText.toLower().left( 12 ) ) {
         fileName = sqlCmd.cmdText.right( sqlCmd.cmdText.length() - 12 ).trimmed();
