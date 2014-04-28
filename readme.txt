@@ -1,0 +1,9 @@
+JetSqlConsole provides a simple command line/console interface for Microsoft Access databases.  Structured query language (SQL) or data definition language (DDL) commands may be entered directly via the command line and executed against the selected Microsoft Access file.  Query results are then displayed in text format in the console window.  JetSqlConsole is designed to be very similar in appearance and operation to the widely used commandline-based MySQL client application.  
+
+JetSqlConsole is intended for database users and developers familiar with SQL, as an alternative to the more typical graphical approach to query design used in Microsoft Access.  With JetSqlConsole, complex queries may be written and tested easily and efficiently.  Lengthy datasets returned by these queries may be saved and manipulated as plain text in a wide variety of other applications.  In addition to the standard command line interface, complex SQL/DDL commands or a lengthy series of commands from a plain text file may also be executed quite easily.
+
+JetSqlConsole is written in C++ for 32 bit Microsoft Windows platforms, and makes extensive use of the ADO and ADOX APIs.  The open-source, cross-platform application framework Qt (http://qt-project.org) is used.  A project file for Qt Creator (http://qt-project.org/wiki/Category:Tools::QtCreator) is included.
+
+Compiled packages, installers, and documentation for JetSqlConsole are currently available via SourceForge (http://sourceforge.net/projects/jetsqlconsole/).  These packages may not incorporate the newest code for the application, which is available at GitHub.
+
+For further information, please contact Aaron Reeves at development@reevesdigital.com.

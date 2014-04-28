@@ -1,15 +1,13 @@
 /*
-JetSQLConsole
+JetSqlConsole
 
 main.cpp
 --------
 Begin: 2004/06/21
-Last revision: $Date: 2007/06/28 00:34:20 $ $Author: apreeves $
-Version number: $Revision: 1.8 $
-Project: JetSQLConsole
+Project: JetSqlConsole
 Website: http://www.aaronreeves.com/jetsqlconsole
-Author: Aaron Reeves <aaron@aaronreeves.com>
---------------------------------------------------
+Author: Aaron Reeves <development@reevesdigital.com>
+----------------------------------------------------
 Copyright (C) 2004 - 2014 Aaron Reeves
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General
@@ -26,10 +24,10 @@ Public License as published by the Free Software Foundation; either version 2 of
 #include <qlist.h>
 #include <qchar.h>
 
-#include "../gpClasses/csql.h"
-#include "../gpClasses/cqstringlist.h"
-#include "../gpClasses/ccmdline.h"
-#include "../gpClasses/qcout.h"
+#include <ar_general_purpose/csql.h>
+#include <ar_general_purpose/cqstringlist.h>
+#include <ar_general_purpose/ccmdline.h>
+#include <ar_general_purpose/qcout.h>
 
 #define VERSION_NUMBER "1.2.0"
 
