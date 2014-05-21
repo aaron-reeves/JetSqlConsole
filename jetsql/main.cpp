@@ -657,6 +657,8 @@ QString convertTypeDescr( CSqlFieldInfo* fi, const int dbFormat ) {
         result = "serial";
       else if( "currency" == fi->fieldTypeDescr().toLower().left(8) )
         result = "money";
+      else if( "double" == fi->fieldTypeDescr().toLower().left(6) )
+        result = "double precision";
       else if( "datetime" == fi->fieldTypeDescr().toLower().left(8) ) {
         if( 0 == fi->fieldDescr().left(9).compare( "datefield", Qt::CaseInsensitive ) ) {
           result = "date";
