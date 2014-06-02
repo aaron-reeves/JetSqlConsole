@@ -30,7 +30,7 @@ Public License as published by the Free Software Foundation; either version 2 of
 #include <ar_general_purpose/help.h>
 #include <ar_general_purpose/qcout.h>
 
-#define VERSION_NUMBER "1.3.0"
+#define VERSION_NUMBER "1.3.1"
 
 #define NUM_INSERT_QUERIES 199
 
@@ -77,6 +77,53 @@ bool isSqlComment( QString cmd ) {
 }
 
 
+bool isSlashCommand( const QString& cmd ) {
+  return( 0 == cmd.left( 1 ).compare( "\\" ) );
+}
+
+
+
+QString extractSlashCommand( QString sqlCmd ) {
+  QString result;
+  QStringList parts;
+
+  // Eliminate any trailing semicolons.  They will confuse matters.
+  while( 0 == sqlCmd.right(1).compare( ";" ) )
+    sqlCmd = sqlCmd.left( sqlCmd.length() - 1 );
+
+  // See what's left.
+  if( 0  == sqlCmd.compare( "\\q" ) )
+    result = "quit;";
+  else if( 0 == sqlCmd.compare( "\\?") )
+    result = "help;";
+  else if( 0 == sqlCmd.compare( "\\dt") )
+    result = "show tables;";
+  else if( 0 == sqlCmd.left(2).compare( "\\d" ) ) {
+    parts = sqlCmd.simplified().split( ' ' );
+    switch( parts.count() ) {
+      case 1:
+        result = "show tables;";
+        break;
+      case 2:
+        result = QString( "describe %1;" ).arg( parts.at(1) );
+        break;
+      default:
+        result = "invalid command;";
+    }
+  }
+  else if( "\\i" == sqlCmd.left(2) ) {
+    parts = sqlCmd.simplified().split( ' ' );
+    if( 2 == parts.count() )
+      result = QString( "\\. %1" ).arg( parts.at(1) );
+    else
+      result = "invalid command;";
+  }
+  else
+    result = "invalid command;";
+
+  return result;
+}
+
 
 SSqlCommand getSqlCmd( void ) {
   SSqlCommand sqlCmdStructure;
@@ -93,28 +140,8 @@ SSqlCommand getSqlCmd( void ) {
 
     // Handle psql-style commands first...
     //------------------------------------
-    QStringList parts;
-
-    if( 0  == sqlCmd.compare( "\\q" ) )
-      sqlCmd = "quit;";
-    else if( 0 == sqlCmd.compare( "\\?") )
-      sqlCmd = "help;";
-    else if( 0 == sqlCmd.compare( "\\dt") )
-      sqlCmd = "show tables;";
-    else if( "\\d" == sqlCmd.left(2) ) {
-      parts = sqlCmd.simplified().split( ' ' );
-      if( 2 == parts.count() )
-        sqlCmd = QString( "describe %1;" ).arg( parts.at(1) );
-      else
-        sqlCmd = "invalid command;";
-    }
-    else if( "\\i" == sqlCmd.left(2) ) {
-      parts = sqlCmd.simplified().split( ' ' );
-      if( 2 == parts.count() )
-        sqlCmd = QString( "\\. %1" ).arg( parts.at(1) );
-      else
-        sqlCmd = "invalid command;";
-    }
+    if( isSlashCommand( sqlCmd ) )
+      sqlCmd = extractSlashCommand( sqlCmd );
 
     // ...then carry on with mysql-style commands.
     //--------------------------------------------
@@ -531,6 +558,44 @@ void dumpDataAccess( QString tableName, CSqlDatabase* db, QTextStream* stream, C
 }
 
 
+void dumpPostgresSequence( QString tableName, CSqlDatabase* db, QTextStream* stream, CFieldInfoList* fieldInfoList ) {
+  int i;
+  CSqlFieldInfo* fi;
+  QString seqName;
+
+  QString q;
+  CSqlResult* res;
+  CSqlRow* row;
+  int lastID;
+
+  // Find any counter fields in the table.
+  // Find the maximum value of the counter field.
+  // Update the appropriate sequence as needed.
+
+  for( i = 0; i < fieldInfoList->count(); ++ i ) {
+    fi = fieldInfoList->at(i);
+
+    if( "counter" == fi->fieldTypeDescr().toLower().left(7) ) {
+      q = QString( "SELECT MAX(%1) AS counterMax FROM %2" ).arg( fi->fieldName() ).arg( tableName );
+      res = new CSqlResult( q, db );
+      row = res->fetchArrayFirst();
+
+      if( !row->field( "counterMax" )->isNull() ) {
+        seqName = QString( "%1_%2_seq" ).arg( tableName ).arg( fi->fieldName() );
+        lastID = row->field( "counterMax" )->toInt();
+        *stream << endl;
+        *stream << QString( "-- Update counter for field %1.%2" ).arg( tableName ).arg( fi->fieldName() ) << endl;
+        *stream << QString( "SELECT setval( '%1', %2, TRUE );" ).arg( seqName ).arg( lastID ) << endl << endl;
+      }
+
+      delete res;
+    }
+  }
+
+  *stream << flush;
+}
+
+
 // Write up to NUM_INSERT_QUERIES "insert queries" at the same time.
 void dumpDataMySqlOrPostgres( QString tableName, CSqlDatabase* db, QTextStream* stream, CFieldInfoList* fieldInfoList, const int dbFormat ) {
   CSqlResult* res;
@@ -897,9 +962,11 @@ bool dumpTableSql( QString tableName, CSqlDatabase* db, QTextStream* stream, con
 
       switch( dbFormat ) {
         case CSqlDatabase::DBMySQL:
-          // fall through
+          dumpDataMySqlOrPostgres( tableName, db, stream, fieldInfoList, dbFormat );
+          break;
         case CSqlDatabase::DBPostgres:
           dumpDataMySqlOrPostgres( tableName, db, stream, fieldInfoList, dbFormat );
+          dumpPostgresSequence( tableName, db, stream, fieldInfoList );
           break;
         case CSqlDatabase::DBMSAccess:
           dumpDataAccess( tableName, db, stream, fieldInfoList );
@@ -1769,7 +1836,7 @@ void showHelp( void ) {
   list.append( "  --file <filename>, -f <filename>:", "Specifies the name of a plain-text file containing SQL commands to be executed against a database. Used in combination with --database." );
   list.append( "  --dbf, -dbf", "Open a DBase file, instead of a Microsoft Access file." );
   list.append( "  --output <filename>, -o <filename>:", "Specifies the name of a plain-text file to write with results from SQL commands executed against a database.  If --database and --file are not given, this switch is ignored." );
-  list.append( "  --continue, -c:", "If preseent, execution of SQL commands in the file will continue even if an error occurs.  Otherwise, execution will stop on an error." );
+  list.append( "  --continue, -c:", "If present, execution of SQL commands in the file will continue even if an error occurs.  Otherwise, execution will stop on an error." );
   list.append( "  --silent, -s:", "Run without writing any output to the console. If --database, --file, and --silent are all given, output will not be written to the console. Otherwise, this switch is ignored." );
 
   list.append( "", "" );
