@@ -1,9 +1,3 @@
-#-------------------------------------------------
-#
-# Project created by QtCreator 2012-02-28T11:41:27
-#
-#-------------------------------------------------
-
 QT       += core
 
 QT       -= gui
@@ -13,6 +7,14 @@ CONFIG   += console
 CONFIG   -= app_bundle
 
 TEMPLATE = app
+
+# Definitions for the application name and version
+VERSION = 1.4.0.20180913
+DATE = "13-Sep-2018"
+DEFINES += \
+  APP_VERSION=\\\"$$VERSION\\\" \
+  APP_DATE=\\\"$$DATE\\\" \
+  APP_NAME=\\\"jetsql\\\"
 
 INCLUDEPATH += \
            ../cadosql/include \

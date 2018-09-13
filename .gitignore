@@ -218,3 +218,5 @@ pip-log.txt
 /jetsql/*.2-pre1
 /jetsql/*.old
 /installer/JetSQLConsoleSetup.exe
+/JetSqlConsole-build-Debug-Desktop_Qt_5_8_0_MinGW_32bit2
+/JetSqlConsole-build-Release-Desktop_Qt_5_8_0_MinGW_32bit2

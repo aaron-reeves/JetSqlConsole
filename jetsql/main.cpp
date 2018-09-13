@@ -5,10 +5,10 @@ main.cpp
 --------
 Begin: 2004/06/21
 Project: JetSqlConsole
-Website: http://www.aaronreeves.com/jetsqlconsole
-Author: Aaron Reeves <development@reevesdigital.com>
+Website: https://github.com/aaron-reeves/JetSqlConsole
+Author: Aaron Reeves <aaron.reeves@naadsm.org>
 ----------------------------------------------------
-Copyright (C) 2004 - 2014 Aaron Reeves
+Copyright (C) 2004 - 2018 Aaron Reeves
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General
 Public License as published by the Free Software Foundation; either version 2 of the License, or
@@ -29,8 +29,6 @@ Public License as published by the Free Software Foundation; either version 2 of
 #include <ar_general_purpose/ccmdline.h>
 #include <ar_general_purpose/help.h>
 #include <ar_general_purpose/qcout.h>
-
-#define VERSION_NUMBER "1.3.2"
 
 #define NUM_INSERT_QUERIES 199
 
@@ -1914,11 +1912,11 @@ void processFileCommand( QString sqlCmd, CSqlDatabase* db, QTextStream* stream )
 
 
 void showVersion( void ) {
-  cout << "JetSQLConsole " << VERSION_NUMBER << endl;
-  cout << "Copyright (C) 2003 - 2014 Aaron Reeves." << endl;
+  cout << "JetSQLConsole " << APP_VERSION << endl;
+  cout << "Copyright (C) 2003 - 2018 Aaron Reeves." << endl;
   cout << "This is free software, released under the terms of the GNU General Public License." << endl;
   cout << "Please see the source or the following URL for copying conditions." << endl;
-  cout << "JetSQLConsole home page: <http://www.aaronreeves.com/jetsqlconsole>" << endl;
+  cout << "JetSQLConsole home page: <https://github.com/aaron-reeves/JetSqlConsole>" << endl;
   cout << endl << flush;
 }
 
@@ -2002,17 +2000,17 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
   QTextStream* outputStream = NULL;
   
   // Other optional switches include --silent (-s) and --continue (-c).   
-  silent = ( cmdLine->HasSwitch( "-s" ) || cmdLine->HasSwitch( "--silent" ) );
-  continueOnError = ( cmdLine->HasSwitch( "-c" ) || cmdLine->HasSwitch( "--continue" ) );
+  silent = ( cmdLine->hasSwitch( "-s" ) || cmdLine->hasSwitch( "--silent" ) );
+  continueOnError = ( cmdLine->hasSwitch( "-c" ) || cmdLine->hasSwitch( "--continue" ) );
   
   
   // Did the user specify a legitimate database file?
   //-------------------------------------------------
-  if( cmdLine->HasSwitch( "-d" ) ) {
-    dbPath = cmdLine->GetSafeArgument( "-d", 0, "" );
+  if( cmdLine->hasSwitch( "-d" ) ) {
+    dbPath = cmdLine->safeArgument( "-d", 0, "" );
   }
-  else if( cmdLine->HasSwitch( "--database" ) ) {
-    dbPath = cmdLine->GetSafeArgument( "--database", 0, "" );
+  else if( cmdLine->hasSwitch( "--database" ) ) {
+    dbPath = cmdLine->safeArgument( "--database", 0, "" );
   }
   else {
     dbPath = "";
@@ -2021,7 +2019,7 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
   // Is the path specified?
   if( 0 == dbPath.trimmed().length() ) {
     if( !silent ) {
-      cout << "JetSQLConsole " << VERSION_NUMBER << endl;
+      cout << "JetSQLConsole " << APP_VERSION << endl;
       cout << "Missing database file name.  Use '-h' for help." << endl << endl << flush;  
     } 
     exitCode = 1;
@@ -2031,7 +2029,7 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
   // Does the specified file exist?
   if( !( QFile::exists( dbPath ) ) ) {
     if( !silent ) {
-      cout << "JetSQLConsole " << VERSION_NUMBER << endl;
+      cout << "JetSQLConsole " << APP_VERSION << endl;
       cout << "Database '" << dbPath << "' does not exist." << endl << endl << flush;  
     } 
     exitCode = 2;
@@ -2048,7 +2046,7 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
 
   if( !( db->isOpen() ) ) {
     if( !silent ) {
-      cout << "JetSQLConsole " << VERSION_NUMBER << endl;
+      cout << "JetSQLConsole " << APP_VERSION << endl;
       cout << "Database '" << dbPath << "' could not be opened." << endl << endl << flush;  
     } 
     exitCode = 2;
@@ -2060,11 +2058,11 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
 
   // Did the user specify a legitimate SQL command file?
   //----------------------------------------------------
-  if( cmdLine->HasSwitch( "-f" ) ) {
-    sqlPath = cmdLine->GetSafeArgument( "-f", 0, "" );
+  if( cmdLine->hasSwitch( "-f" ) ) {
+    sqlPath = cmdLine->safeArgument( "-f", 0, "" );
   }
-  else if( cmdLine->HasSwitch( "--file" ) ) {
-    sqlPath = cmdLine->GetSafeArgument( "--file", 0, "" );
+  else if( cmdLine->hasSwitch( "--file" ) ) {
+    sqlPath = cmdLine->safeArgument( "--file", 0, "" );
   }
   else {
     sqlPath = ""; 
@@ -2074,7 +2072,7 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
   // Is the path specified?
   if( 0 == sqlPath.trimmed().length() ) {
     if( !silent ) {
-      cout << "JetSQLConsole " << VERSION_NUMBER << endl;
+      cout << "JetSQLConsole " << APP_VERSION << endl;
       cout << "Missing SQL command file name.  Use '-h' for help." << endl << endl << flush;  
     } 
     exitCode = 3;
@@ -2084,7 +2082,7 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
   // Does the specified file exist?
   if( !( QFile::exists( sqlPath ) ) ) {
     if( !silent ) {
-      cout << "JetSQLConsole " << VERSION_NUMBER << endl;
+      cout << "JetSQLConsole " << APP_VERSION << endl;
       cout << "File '" << sqlPath << "' does not exist." << endl << endl << flush;  
     } 
     exitCode = 4;
@@ -2095,7 +2093,7 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
   sqlFile = new QFile( sqlPath );
   if( !( sqlFile->open( QIODevice::ReadOnly ) ) ) {
     if( !silent ) {
-      cout << "JetSQLConsole " << VERSION_NUMBER << endl;
+      cout << "JetSQLConsole " << APP_VERSION << endl;
       cout << "File '" << sqlPath << "' could not be opened." << endl << endl << flush;  
     } 
     exitCode = 4;
@@ -2109,12 +2107,12 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
   
   // Does the user want an output file?  If so, is it properly specified?
   //---------------------------------------------------------------------
-  if( cmdLine->HasSwitch( "-o" ) ) {
-    outputPath = cmdLine->GetSafeArgument( "-o", 0, "" );
+  if( cmdLine->hasSwitch( "-o" ) ) {
+    outputPath = cmdLine->safeArgument( "-o", 0, "" );
     useOutputFile = true;
   }
-  else if( cmdLine->HasSwitch( "--output" ) ) {
-    sqlPath = cmdLine->GetSafeArgument( "--output", 0, "" );
+  else if( cmdLine->hasSwitch( "--output" ) ) {
+    sqlPath = cmdLine->safeArgument( "--output", 0, "" );
     useOutputFile = true;
   }
   else {
@@ -2126,7 +2124,7 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
   if( useOutputFile ) {
     if( 0 == outputPath.length() ) {
       if( !silent ) {
-        cout << "JetSQLConsole " << VERSION_NUMBER << endl;
+        cout << "JetSQLConsole " << APP_VERSION << endl;
         cout << " Ouptut file name not specified." << endl << endl << flush; 
       } 
       exitCode = 6;
@@ -2139,7 +2137,7 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
     outputFile = new QFile( outputPath );
     if( !( outputFile->open( QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text ) ) ) {
       if( !silent ) {
-        cout << "JetSQLConsole " << VERSION_NUMBER << endl;
+        cout << "JetSQLConsole " << APP_VERSION << endl;
         cout << "Output file '" << outputPath << "' could not be opened." << endl << endl << flush;  
       } 
       exitCode = 4;
@@ -2188,14 +2186,14 @@ void handleSqlFileFromCommandLine( CCmdLine* cmdLine, int& exitCode ) {
 bool handleSwitch( CCmdLine* cmdLine, QString& dbPath, int& exitCode ) {
   bool dbSwitchPresent, fileSwitchPresent;
   
-  dbSwitchPresent = ( cmdLine->HasSwitch( "-d" ) || cmdLine->HasSwitch( "--database" ) );
-  fileSwitchPresent = ( cmdLine->HasSwitch( "-f" ) || cmdLine->HasSwitch( "-filename" ) ); 
+  dbSwitchPresent = ( cmdLine->hasSwitch( "-d" ) || cmdLine->hasSwitch( "--database" ) );
+  fileSwitchPresent = ( cmdLine->hasSwitch( "-f" ) || cmdLine->hasSwitch( "-filename" ) );
   
-  if( cmdLine->HasSwitch( "-h" ) || cmdLine->HasSwitch( "--help" ) || cmdLine->HasSwitch( "-?" ) ) {
+  if( cmdLine->hasSwitch( "-h" ) || cmdLine->hasSwitch( "--help" ) || cmdLine->hasSwitch( "-?" ) ) {
      showHelp();
      return true;
   }
-  else if( cmdLine->HasSwitch( "-v" ) || cmdLine->HasSwitch( "--version" ) ) {
+  else if( cmdLine->hasSwitch( "-v" ) || cmdLine->hasSwitch( "--version" ) ) {
     showVersion();
     return true;
   }
@@ -2204,16 +2202,16 @@ bool handleSwitch( CCmdLine* cmdLine, QString& dbPath, int& exitCode ) {
     return true;
   }
   else if( dbSwitchPresent && !( fileSwitchPresent ) ) {
-    if( cmdLine->HasSwitch( "-d" ) ) {
-      dbPath = cmdLine->GetSafeArgument( "-d", 0, "" );
+    if( cmdLine->hasSwitch( "-d" ) ) {
+      dbPath = cmdLine->safeArgument( "-d", 0, "" );
     }
-    else if( cmdLine->HasSwitch( "--database" ) ) {
-      dbPath = cmdLine->GetSafeArgument( "--database", 0, "" );
+    else if( cmdLine->hasSwitch( "--database" ) ) {
+      dbPath = cmdLine->safeArgument( "--database", 0, "" );
     }
     return false;  
   }
   else {
-    cout << "JetSQLConsole " << VERSION_NUMBER << endl;
+    cout << "JetSQLConsole " << APP_VERSION << endl;
     cout << "Incorrect command line switch(es).  Use '-h' for help." << endl << endl << flush;
     return true;
   }
@@ -2240,9 +2238,9 @@ int main( int argc, char **argv ) {
   
   CCmdLine* cmdLine = new CCmdLine( argc, argv );
 
-  nSwitches = cmdLine->getSwitchCount();
+  nSwitches = cmdLine->switchCount();
 
-  isDbfFile = cmdLine->HasSwitch( "-dbf" ) || cmdLine->HasSwitch( "--dbf" );
+  isDbfFile = cmdLine->hasSwitch( "-dbf" ) || cmdLine->hasSwitch( "--dbf" );
 
   if ( 0 < nSwitches ) { // At least one switch is present on the command line.
     // Do something with the it/them.
@@ -2259,7 +2257,7 @@ int main( int argc, char **argv ) {
   }
 
   // Carry on as usual after handling the switch
-  cout << "JetSQLConsole " << VERSION_NUMBER << endl << flush;
+  cout << "JetSQLConsole " << APP_VERSION << endl << flush;
 
   while( true ) {
     if( 0 == dbPath.length() ) dbPath = getDbPath( isDbfFile );
