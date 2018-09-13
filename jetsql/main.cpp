@@ -30,7 +30,7 @@ Public License as published by the Free Software Foundation; either version 2 of
 #include <ar_general_purpose/help.h>
 #include <ar_general_purpose/qcout.h>
 
-#define VERSION_NUMBER "1.3.1"
+#define VERSION_NUMBER "1.3.2"
 
 #define NUM_INSERT_QUERIES 199
 
@@ -886,6 +886,7 @@ bool dumpTableSql( QString tableName, CSqlDatabase* db, QTextStream* stream, con
   int j;
   bool result;
   QString comments = "";
+  QString fieldDescr = "";
 
   if( NULL == stream ) {
     //qDebug() << "No stream in dumpTableSql()";
@@ -921,7 +922,18 @@ bool dumpTableSql( QString tableName, CSqlDatabase* db, QTextStream* stream, con
           << " " << convertTypeDescr( fi, dbFormat )
         ;
 
-        if( 0 < fi->fieldDescr().length() ) {
+        fieldDescr = fi->fieldDescr();
+
+        if( 0 == fieldDescr.left(13).compare( "datetimefield", Qt::CaseInsensitive )  )
+          fieldDescr = fieldDescr.right( fieldDescr.length() - 13);
+        else if( 0 == fieldDescr.left(9).compare( "timefield", Qt::CaseInsensitive ) )
+          fieldDescr = fieldDescr.right( fieldDescr.length() - 9);
+        else if( 0 == fieldDescr.left(9).compare( "datefield", Qt::CaseInsensitive ) )
+          fieldDescr = fieldDescr.right( fieldDescr.length() - 9);
+        else if( 0 == fieldDescr.left(14).compare( "timestampfield", Qt::CaseInsensitive ) )
+          fieldDescr = fieldDescr.right( fieldDescr.length() - 14);
+
+        if( 0 < fieldDescr.length() ) {
           switch( dbFormat ) {
             case CSqlDatabase::DBMySQL:
               *stream << " COMMENT " << CSqlDatabase::sqlQuote( fi->fieldDescr(), dbFormat );
@@ -931,7 +943,7 @@ bool dumpTableSql( QString tableName, CSqlDatabase* db, QTextStream* stream, con
                 QString( "COMMENT ON COLUMN %1.%2 IS %3;\n" )
                   .arg( CSqlDatabase::delimitedName( tableName, dbFormat ) )
                   .arg(  CSqlDatabase::delimitedName( fi->fieldName(), dbFormat ) )
-                  .arg( CSqlDatabase::sqlQuote( fi->fieldDescr(), dbFormat ) )
+                  .arg( CSqlDatabase::sqlQuote( fieldDescr, dbFormat ) )
               );
             default:
               break;
@@ -1082,8 +1094,60 @@ bool dumpSql( CSqlDatabase* db, QTextStream* stream, const int dbFormat, const b
 }
 
 
+bool transferTable( const QString& tableName, CSqlDatabase* db, QTextStream*stream, const QString& srcDbName, const QString& destDbName ) {
+  bool result;
+  int i;
+  CSqlFieldInfo* fi;
+  CFieldInfoList* fieldInfoList = NULL;
+  QStringList* list = db->newTableList();
+  QString fields;
 
-bool describeTable( QString tableName, CSqlDatabase* db, const bool isSystemTable, QTextStream* stream, const bool& useWikiFormat ) {
+  if( list->contains( tableName ) ) {
+    fieldInfoList = db->newFieldInfoList( tableName, &result );
+
+    if( result ) {
+      fields = "";
+
+      for( i = 0; i < fieldInfoList->count(); ++i ) {
+        fi = fieldInfoList->at(i);
+        fields.append( QString( "  \"%1\"" ).arg( fi->fieldName() ) );
+
+        if( i < (fieldInfoList->count() - 1) )
+          fields.append( ",\n" );
+        else
+          fields.append( "\n" );
+      }
+
+      *stream << QString( "INSERT INTO \"%1\".\"%2\" (" ).arg( destDbName ).arg( tableName ) << endl;
+      *stream << fields;
+      *stream << ")" << endl;
+      *stream << "SELECT" << endl;
+      *stream << fields;
+      *stream << QString( "FROM \"%1\".\"%2\";" ).arg( srcDbName ).arg( tableName ) << endl;
+      *stream << endl << endl;
+
+      result = true;
+    }
+    else {
+      *stream << "ERROR: Cannot retrieve field list for table '" << tableName << "'" << endl << endl << flush;
+      result = false;
+    }
+
+
+  } else {
+    *stream << "ERROR: Table '" << tableName << "' doesn't exist" << endl << endl << flush;
+    result = false;
+  }
+
+  delete fieldInfoList;
+  delete list;
+
+  return result;
+}
+
+
+
+bool describeTable( const QString& tableName, CSqlDatabase* db, const bool isSystemTable, QTextStream* stream, const bool& useWikiFormat ) {
   CSqlFieldInfo* fi;
   TIntArray* sizeArray;
   CFieldInfoList* fieldInfoList;
@@ -1189,12 +1253,39 @@ bool describeAllTables( CSqlDatabase* db, QTextStream* stream, const bool& useWi
   for( i = 0; i < tableList->count(); ++i ) {
     str = tableList->at(i);
     *stream << "jetsql> describe " << str << ";" << endl;
-    if( !( describeTable( QString( str ), db, false, stream, useWikiFormat ) ) )
+    if( !( describeTable( str, db, false, stream, useWikiFormat ) ) )
       result = false;
   }
 
   delete tableList;
-  return( result );
+
+  return result;
+}
+
+
+
+bool transferAllTables( CSqlDatabase* db, QTextStream* stream, const QString& srcDbName, const QString& destDbName ) {
+  QString str;
+
+  bool result = true;
+  int i;
+
+  if( NULL == stream ) {
+    //qDebug() << "No stream in transferAllTables()";
+    return true;
+  }
+
+  QStringList* tableList = db->newTableList();
+
+  for( i = 0; i < tableList->count(); ++i ) {
+    str = tableList->at(i);
+    if( !( transferTable( str, db, stream, srcDbName, destDbName ) ) )
+      result = false;
+  }
+
+  delete tableList;
+
+  return result;
 }
 
 
@@ -1450,15 +1541,16 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
   }
   else {
     // Check for 'admin' functions
-    //----------------------------
+    //============================
     // Use a white-space-simplified version of the command, but
     // don't mess with the original command, just in case the internal white space
     // is part of a query.
     adminCmd = sqlCmd.simplified();
     
 
+    //====================================================================================
     // Handle sqldump
-    //---------------
+    //====================================================================================
     if( "sqldump" == adminCmd.left(7).toLower() ) {
       adminCmdParts = adminCmd.split( QRegExp( "\\s+" ) );  
       
@@ -1535,12 +1627,14 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
         if( !silent ) {
           result = dumpSql( db, stream, outputFormat, includeData, dataOnly );
         }
-      }
-       
+      }       
     }
+    //====================================================================================
 
+
+    //====================================================================================
     // Handle wikidump commands
-    //-------------------------
+    //====================================================================================
     else if( "wikidump" == adminCmd.left(8).toLower() ) {
       adminCmdParts = adminCmd.split( QRegExp( "\\s+" ) );
 
@@ -1560,10 +1654,32 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
         return false;
       }
     }
+    //====================================================================================
 
 
+    //====================================================================================
+    // handle dbtransfer commands
+    //====================================================================================
+    else if( "dbtransfer" == adminCmd.left(10).toLower() ) {
+      adminCmdParts = adminCmd.split( QRegExp( "\\s+" ) );
+
+      if( 3 == adminCmdParts.count() ) {
+        QString srcDbName = adminCmdParts.at( 1 );
+        QString destDbName = adminCmdParts.at( 2 );
+
+        result = transferAllTables( db, stream, srcDbName, destDbName );
+      }
+      else {
+        if( !silent )
+          *stream << "Bad DBTRANSFER command." << endl << flush;
+        return false;
+      }
+    }
+    //====================================================================================
+
+    //====================================================================================
     // Handle simpler admin commands
-    //------------------------------
+    //====================================================================================
     else if( "primary keys" == adminCmd.left(12).toLower() ) {
       if( !silent ) 
         result = showKeys( db, stream, cmd.formatType, CSqlDatabase::DBKeyTypePrimary );
@@ -1606,14 +1722,22 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
         result = true;
       }
     }
+    //====================================================================================
 
 
-    // Check for a typical query
-    //--------------------------
+    //====================================================================================
+    // Check for a SELECT query
+    //====================================================================================
     else if( CSqlQueryString::isSelect( sqlCmd ) ) {
       if( !silent ) 
         result = printRecords( cmd, db, stream );
     }
+    //====================================================================================
+
+
+    //====================================================================================
+    // Try executing the command
+    //====================================================================================
     else if( db->execute( sqlCmd, &rowsAffected ) ) {
       result = true;
       if( !silent ) {
@@ -1625,12 +1749,20 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
         *stream << "Records affected: " << rowsAffected << endl << flush;
       }
     }
+    //====================================================================================
+
+
+    //====================================================================================
+    // Finally, if nothing worked...
+    //====================================================================================
     else {
       result = false;
       if( !silent )
         *stream << "Query failed: " << db->lastError() << endl << flush;
     }
+    //====================================================================================
   }
+
 
   return( result );
 }
@@ -1638,12 +1770,10 @@ bool processSqlCommand( SSqlCommand cmd, CSqlDatabase* db, QTextStream* stream, 
 
 
 bool isFile( QString sqlCmd ) {
-  if( sqlCmd.left( 5 ) == "FILE " ) {
+  if( sqlCmd.left( 5 ) == "FILE " )
     return true;
-  }
-  else {
+  else
     return false;
-  }
 }
 
 
@@ -1814,6 +1944,7 @@ CHelpItemList interactiveModesCommandList() {
   list.append( "  sqldump [nodata] [mysql|postgres] [tablename]:", "Generates a complete set of DDL instructions to regenerate and (optionally) populate the database. If the option 'nodata' is provided, the generated script will only reproduce the structure of the database.  Options 'mysql' or 'postgres' produce DDL/SQL statements compatible with MySQL or PostgreSQL, respectively. Otherwise, the generated script is suitable for use with Microsoft Access. If option 'tablename' is provided, DDL/SQL for only the indicated table is generated." );
   list.append( "  csvdump table <tablename>:", "Writes the contents of the indicated table in comma-separated format." );
   list.append( "  wikidump [tablename]:", "Generates a description of the specified table suitable for pasting into a wiki page.  If the option 'tablename' is not provided, descriptions for all tables are generated." );
+  list.append( "  dbtransfer <src> <dest>", "Generates a script for INSERT INTO... SELECT... for populating <dest> database from <src> database." );
 
   return list;
 }
